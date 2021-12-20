@@ -97,31 +97,22 @@ enum ColorSensorMeasurementRate {
 
 const logger = LogUtil.getLogger(DEVICE_IDENT);
 
-export interface RevColorSensorConfig {
+export interface VL53L0XConfig {
     port?: number;
     channel?: number;
 }
 
-export default class RevColorSensorV3 extends CustomDevice {
-    private _config: RevColorSensorConfig;
+export default class VL53L0X extends CustomDevice {
+    private _config: VL53L0XConfig;
     private _i2cBus: I2CPromisifiedBus;
-
-    private _lastRed: number = 0;
-    private _lastBlue: number = 0;
-    private _lastGreen: number = 0;
-    private _lastIR: number = 0;
 
     private _lastProx: number = 0;
 
-    private _simDevice: SimColorSensor;
+    private _simDevice: SimLidar;
 
-    private _ntEntryRed: NetworkTableEntry;
-    private _ntEntryGreen: NetworkTableEntry;
-    private _ntEntryBlue: NetworkTableEntry;
-    private _ntEntryIR: NetworkTableEntry;
     private _ntEntryProx: NetworkTableEntry;
 
-    constructor(robotHW: RobotHardwareInterfaces, config: RevColorSensorConfig) {
+    constructor(robotHW: RobotHardwareInterfaces, config: VL53L0XConfig) {
         super(DEVICE_IDENT, true, robotHW, true);
 
         this._config = config;
@@ -129,17 +120,13 @@ export default class RevColorSensorV3 extends CustomDevice {
 
         // Set up NT entries
         if (this.networkTable) {
-            this._ntEntryRed = this.networkTable.getEntry("Red");
-            this._ntEntryGreen = this.networkTable.getEntry("Green");
-            this._ntEntryBlue = this.networkTable.getEntry("Blue");
-            this._ntEntryIR = this.networkTable.getEntry("IR");
             this._ntEntryProx = this.networkTable.getEntry("Proximity");
         }
 
         const devicePortIndex: number = config.port !== undefined ? config.port : 0;
         const deviceChannelIndex: number = config.channel !== undefined ? config.channel : I2C_ADDRESS;
 
-        this._simDevice = new SimColorSensor(devicePortIndex, deviceChannelIndex);
+        this._simDevice = new SimLidar(devicePortIndex, deviceChannelIndex);
 
         this._checkDeviceID()
         .then(idValid => {
@@ -160,26 +147,13 @@ export default class RevColorSensorV3 extends CustomDevice {
     }
 
     public async update(): Promise<void> {
-        this._lastRed = await this._read20BitRegister(Register.DATA_RED);
-        this._lastGreen = await this._read20BitRegister(Register.DATA_GREEN);
-        this._lastBlue = await this._read20BitRegister(Register.DATA_BLUE);
-        this._lastIR = await this._read20BitRegister(Register.DATA_INFRARED);
-
         this._lastProx = await this._read11BitRegister(Register.PROX_DATA);
 
         // Update the SimDevice
-        this._simDevice.red = this._lastRed;
-        this._simDevice.green = this._lastGreen;
-        this._simDevice.blue = this._lastBlue;
-        this._simDevice.infrared = this._lastIR;
         this._simDevice.proximity = this._lastProx;
 
         // Also update the NT Interface
         if (this.networkTable) {
-            this._ntEntryRed.setDouble(this._lastRed);
-            this._ntEntryGreen.setDouble(this._lastGreen);
-            this._ntEntryBlue.setDouble(this._lastBlue);
-            this._ntEntryIR.setDouble(this._lastIR);
             this._ntEntryProx.setDouble(this._lastProx);
         }
     }
@@ -206,29 +180,8 @@ export default class RevColorSensorV3 extends CustomDevice {
         await this._writeByte(Register.PROX_SENSOR_RATE, res | rate);
     }
 
-    public async configureColorSensor(res: ColorSensorResolution, rate: ColorSensorMeasurementRate, gain: GainFactor): Promise<void> {
-        await this._writeByte(Register.LIGHT_SENSOR_MEAUSUREMENT_RATE, res | rate);
-        await this._writeByte(Register.LIGHT_SENSOR_GAIN, gain);
-    }
-
     public getProximity(): number {
         return this._lastProx;
-    }
-
-    public getRed(): number {
-        return this._lastRed;
-    }
-
-    public getGreen(): number {
-        return this._lastGreen;
-    }
-
-    public getBlue(): number {
-        return this._lastBlue;
-    }
-
-    public getIR(): number {
-        return this._lastIR;
     }
 
     public async hasReset(): Promise<boolean> {
@@ -240,14 +193,14 @@ export default class RevColorSensorV3 extends CustomDevice {
         try {
             const value = await this._readByte(Register.PART_ID);
             if (value !== PART_IDENT) {
-                logger.error("Unknown device found with same I2C address, but incorrect ident");
+                logger.error("Unknown device found with same I2C address, but incorrect ident: " + value);
                 return false;
             }
 
             return true;
         }
         catch (err) {
-            logger.error("Could not find REV Color Sensor");
+            logger.error("Could not find VL53L0X");
             return false;
         }
     }
