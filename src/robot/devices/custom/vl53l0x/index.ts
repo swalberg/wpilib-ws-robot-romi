@@ -10,13 +10,14 @@ const I2C_ADDRESS = 0x29;
 const PART_IDENT = 0xC2;
 
 enum Register {
+    PART_ID = 0xc0,
+    
     MAIN_CTRL = 0x00,
     PROX_SENSOR_LED = 0x01,
     PROX_SENSOR_PULSES = 0x02,
     PROX_SENSOR_RATE = 0x03,
     LIGHT_SENSOR_MEAUSUREMENT_RATE = 0x04,
     LIGHT_SENSOR_GAIN = 0x05,
-    PART_ID = 0x06,
     MAIN_STATUS = 0x07,
     PROX_DATA = 0x08,
     DATA_INFRARED = 0x0A,
@@ -191,12 +192,13 @@ export default class VL53L0X extends CustomDevice {
 
     private async _checkDeviceID(): Promise<boolean> {
         try {
-            const value = await this._readByte(Register.PART_ID);
-            if (value !== PART_IDENT) {
+            const value = await this._read16BitRegister(Register.PART_ID);
+            if (value !== 0xAAEE) {
                 logger.error("Unknown device found with same I2C address, but incorrect ident: " + value);
                 return false;
             }
 
+            logger.info("Found device");
             return true;
         }
         catch (err) {
@@ -209,6 +211,16 @@ export default class VL53L0X extends CustomDevice {
         await this._writeByte(Register.MAIN_CTRL, MainControl.RGB_MODE | MainControl.LIGHT_SENSOR_ENABLE | MainControl.PROX_SENSOR_ENABLE);
         await this._writeByte(Register.PROX_SENSOR_RATE, ProximitySensorResolution.PROX_RES_11BIT | ProximitySensorMeasurementRate.PROX_RATE_100MS);
         await this._writeByte(Register.PROX_SENSOR_PULSES, 32);
+    }
+
+    private async _read16BitRegister(reg: Register): Promise<number> {
+        const buf = Buffer.alloc(2);
+        const offset = (reg as number);
+
+        buf[0] = await this._readByte(offset);
+        buf[1] = await this._readByte(offset + 1);
+
+        return buf.readUInt16LE();
     }
 
     private async _read11BitRegister(reg: Register): Promise<number> {
