@@ -3,6 +3,7 @@ import I2CPromisifiedBus from "../../../../device-interfaces/i2c/i2c-connection"
 import LogUtil from "../../../../utils/logging/log-util";
 import CustomDevice, { IOInterfaces, RobotHardwareInterfaces } from "../custom-device";
 import SimLidar from "./sim-lidar";
+const fs = require('fs')
 
 const DEVICE_IDENT: string = "ADAFRUIT-VL53L0X-v2";
 
@@ -148,7 +149,12 @@ export default class VL53L0X extends CustomDevice {
     }
 
     public async update(): Promise<void> {
-        this._lastProx = await this._read11BitRegister(Register.PROX_DATA);
+	    //this._lastProx = await this._read11BitRegister(Register.PROX_DATA);
+      try {
+	    this._lastProx = fs.readFileSync('/tmp/distance.dat', 'utf8')
+	    } catch (err) {
+	    console.error(err)
+	    }
 
         // Update the SimDevice
         this._simDevice.proximity = this._lastProx;
